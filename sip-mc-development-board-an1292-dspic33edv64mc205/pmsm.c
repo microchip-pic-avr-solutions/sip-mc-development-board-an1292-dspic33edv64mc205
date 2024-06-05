@@ -146,6 +146,7 @@ int main ( void )
             BoardService();
         }
         HAL_Board_FaultClear();
+        ChargeBootstrapCapacitors();           
         while(1)
         {
             DiagnosticsStepMain();
@@ -166,6 +167,7 @@ int main ( void )
                 }
                 else
                 {
+                    
                     EnablePWMOutputsInverterA();
                     uGF.bits.RunMotor = 1;
                 }
@@ -177,7 +179,7 @@ int main ( void )
                 if ((uGF.bits.RunMotor == 1) && (uGF.bits.OpenLoop == 0))
                 {
                     uGF.bits.ChangeSpeed = !uGF.bits.ChangeSpeed;
-                }
+            }
             }
             
         }
@@ -215,6 +217,9 @@ void ResetParmeters(void)
 	DisableADCInterrupt();
     
     /* Re initialize the duty cycle to minimum value */
+    pwmDutycycle.dutycycle1 = MIN_DUTY;
+    pwmDutycycle.dutycycle2 = MIN_DUTY;
+    pwmDutycycle.dutycycle3 = MIN_DUTY;
     INVERTERA_PWM_PDC1 = MIN_DUTY;
     INVERTERA_PWM_PDC2 = MIN_DUTY;
     INVERTERA_PWM_PDC3 = MIN_DUTY;
@@ -513,7 +518,7 @@ void __attribute__((interrupt, no_auto_psv)) _ADCInterrupt(void)
         }
         MC_CalculateSineCosine_Assembly_Ram(thetaElectrical,&sincosTheta);
         MC_TransformParkInverse_Assembly(&vdq,&sincosTheta,&valphabeta);
-
+        
         MC_TransformClarkeInverseSwappedInput_Assembly(&valphabeta,&vabc);
         MC_CalculateSpaceVectorPhaseShifted_Assembly(&vabc,pwmPeriod,
                                                     &pwmDutycycle);
@@ -537,9 +542,9 @@ void __attribute__((interrupt, no_auto_psv)) _ADCInterrupt(void)
     }
     else
     {
-        INVERTERA_PWM_PDC3 = MIN_DUTY;
-        INVERTERA_PWM_PDC2 = MIN_DUTY;
-        INVERTERA_PWM_PDC1 = MIN_DUTY;
+        INVERTERA_PWM_PDC3 = pwmDutycycle.dutycycle3;
+        INVERTERA_PWM_PDC2 = pwmDutycycle.dutycycle2;
+        INVERTERA_PWM_PDC1 = pwmDutycycle.dutycycle1;
         measCurrOffsetFlag = 1;
     }
     DiagnosticsStepIsr();
@@ -699,7 +704,7 @@ void MeasCurrOffset(int16_t *pOffseta,int16_t *pOffsetb)
     {
         measCurrOffsetFlag = 0;
         /* Wait for the conversion to complete */
-        while (measCurrOffsetFlag == 1);
+        while (measCurrOffsetFlag == 0);
         /* Sum up the converted results */
         adcOffsetIa += ADCBUF_INV_A_IPHASE1;
         adcOffsetIb += ADCBUF_INV_A_IPHASE2;

@@ -107,7 +107,6 @@ void InitPWM123Generators(void);
 void InitADCModule1(ADC_OFFSET_T *);
 void InitAmplifiersComparator(void);
 void InitPWMGenerators(void);
-void ChargeBootstarpCapacitors(void);
 
 // *****************************************************************************
 /* Function:
@@ -412,16 +411,10 @@ void InitPWMGenerators(void)
 
     InitPWM123Generators();
 
-    ChargeBootstarpCapacitors();
-    
-    IOCON1 = 0xC301;
-    IOCON2 = 0xC301;
-    IOCON3 = 0xC301;
+    __delay_us(2);
 
     PTCONbits.PTEN = 1;      // Enable PWM module after initialising generators
-    
 
-    return;
 }
 
 // *****************************************************************************
@@ -657,9 +650,13 @@ void InitPWM123Generators(void)
   Remarks:
     None.
  */
-void ChargeBootstarpCapacitors(void)
+void ChargeBootstrapCapacitors(void)
 {
-    uint16_t i = BOOTSTRAP_CHARGING_TIME;
+    /*To ensure minimum pulse before turning ON the override*/
+    pwmDutycycle.dutycycle1 = LOOPTIME_TCY - MIN_DUTY;
+    pwmDutycycle.dutycycle2 = LOOPTIME_TCY - MIN_DUTY;
+    pwmDutycycle.dutycycle3 = LOOPTIME_TCY - MIN_DUTY;
+    __delay_us(100);
 
     // Enable PWMs only on PWMxL ,to charge bootstrap capacitors initially
     // Hence PWMxH is over-ridden to "LOW"
@@ -677,30 +674,25 @@ void ChargeBootstarpCapacitors(void)
 
     // PDCx: PWMx GENERATOR DUTY CYCLE REGISTER
     // Initialise the PWM duty cycle for charging
-    PDC1 = PHASE1 - (MIN_DUTY + 3);
-    PDC2 = PHASE1 - (MIN_DUTY + 3);
-    PDC3 = PHASE1 - (MIN_DUTY + 3);
+    pwmDutycycle.dutycycle1 = LOOPTIME_TCY - (TICKLE_CHARGE_COUNTS);
+    pwmDutycycle.dutycycle2 = LOOPTIME_TCY - (TICKLE_CHARGE_COUNTS);
+    pwmDutycycle.dutycycle3 = LOOPTIME_TCY - (TICKLE_CHARGE_COUNTS);
 
-    PTCONbits.PTEN = 1;      // Enable PWM module for charging bootstrap CAPs
-
-    while(i)
-    {
-        __delay_us(1);
-        i--;
-    }
+    /*Tickle charge duration*/
+    __delay_us(BOOTSTRAP_CHARGING_TIME);
     
-    PTCONbits.PTEN = 0;      // Disable PWM module after charging
+    /*Reseting the PWM duties to Minimum*/
+    pwmDutycycle.dutycycle1 = MIN_DUTY;
+    pwmDutycycle.dutycycle2 = MIN_DUTY;
+    pwmDutycycle.dutycycle3 = MIN_DUTY;
 
-    // Reset modified PWM configurations after bootstrap charging
-    // PDCx: PWMx GENERATOR DUTY CYCLE REGISTER
-    // Re-initialise the PWM duty cycle register
-    PDC1 = MIN_DUTY;
-    PDC2 = MIN_DUTY;
-    PDC3 = MIN_DUTY;
-
-    IOCON1bits.OVRENH = 0;  // 1 = PWM generator provides data for PWM1H pin
-    IOCON2bits.OVRENH = 0;  // 1 = PWM generator provides data for PWM2H pin
-    IOCON3bits.OVRENH = 0;  // 1 = PWM generator provides data for PWM3H pin
+    __delay_us(500);
+         
+    /*Disabling the PWM Outputs using Override feature*/
+    IOCON1 = 0xC301;
+    IOCON2 = 0xC301;
+    IOCON3 = 0xC301;    
+    __delay_us(100);
 }
 // *****************************************************************************
 /* Function:
@@ -893,6 +885,6 @@ void InitPeripherals(void)
     InitPWMGenerators();
     /* Initialize the ADC used for sensing Inverter A parameters */
     InitADCModule1(&adcOffset);
-    
+   
     __delay_us(50);
 }
